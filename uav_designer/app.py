@@ -18,7 +18,7 @@ from engines.mission_engine       import interpret_mission
 from engines.config_engine        import score_configurations
 from engines.geometry_engine      import build_geometry, back_solve_geometry
 from engines.propulsion_engine    import build_propulsion, cruise_power, endurance_from_energy
-from engines.performance_engine   import compute_performance, get_airfoil, AIRFOIL_DB
+from engines.performance_engine   import compute_performance, get_airfoil, AIRFOIL_DB, parse_naca
 from engines.mass_balance_engine  import (
     compute_cg, target_cg_range, packaging_score,
     default_mass_items, auto_place_battery
@@ -340,7 +340,45 @@ with tab_geom:
         h_tail_area     = st.slider("H-tail area (m2)", 0.005, 0.20, 0.04, 0.005)
         v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.02, 0.002)
         st.subheader("Airfoil")
-        airfoil_name    = st.selectbox("Airfoil", list(AIRFOIL_DB.keys()))
+        airfoil_mode = st.radio("Airfoil input mode",
+            ["Preset library", "Custom NACA code"],
+            horizontal=True, key="airfoil_mode")
+
+        if airfoil_mode == "Preset library":
+            airfoil_name = st.selectbox("Select airfoil", list(AIRFOIL_DB.keys()))
+        else:
+            custom_code = st.text_input(
+                "Enter NACA code (4 or 5 digit)",
+                value="2412",
+                placeholder="e.g. 2412, 4415, 23012",
+                key="custom_naca"
+            )
+            airfoil_name = f"NACA {custom_code.strip().upper().replace('NACA','').strip()}"
+            parsed = parse_naca(airfoil_name)
+            if parsed:
+                st.success(f"✅ Recognized: {airfoil_name}")
+                pc1, pc2, pc3 = st.columns(3)
+                pc1.metric("Cl alpha (/rad)", f"{parsed['Cl_a']:.3f}")
+                pc2.metric("Alpha L0 (deg)",  f"{parsed['al0']:.2f}")
+                pc3.metric("CL max est.",     f"{parsed['CL_max']:.3f}")
+                if parsed.get("type") == "4-digit":
+                    st.caption(
+                        f"Max camber: {parsed['M_pct']:.1f}%  |  "
+                        f"Max thickness: {parsed['T_pct']:.1f}%  |  "
+                        f"Parameters computed via thin airfoil theory."
+                    )
+                else:
+                    st.caption(
+                        f"Design CL: {parsed.get('CL_design', 'N/A')}  |  "
+                        f"Max thickness: {parsed['T_pct']:.1f}%  |  "
+                        f"5-digit series (reflexed camber line)."
+                    )
+            else:
+                st.error(
+                    f"Could not parse '{custom_code}' as a NACA 4 or 5-digit code. "
+                    "Examples: 0012, 2412, 4415, 23012, 63412"
+                )
+                airfoil_name = "NACA 4412"  # fallback
 
     geom_in = GeometryInputs(
         span=span, root_chord=root_chord, taper=taper,
