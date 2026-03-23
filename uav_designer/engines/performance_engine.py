@@ -33,15 +33,18 @@ def cl_alpha_3d(Cl_a2D: float, AR: float, sweep_r: float, e: float) -> float:
 
 
 def estimate_CD0(configuration: str = "Conventional Tractor") -> float:
+    # These values include realistic parasite drag from fuselage, landing gear,
+    # wiring, interference effects, and surface roughness for small UAVs.
+    # Small UAVs operate at low Re where skin friction is higher than theoretical.
     base = {
-        "Conventional Tractor": 0.030,
-        "Conventional Pusher":  0.028,
-        "Twin-Boom Pusher":     0.038,
-        "Flying Wing":          0.018,
-        "Canard":               0.032,
-        "Tandem Wing":          0.035,
+        "Conventional Tractor": 0.055,
+        "Conventional Pusher":  0.050,
+        "Twin-Boom Pusher":     0.065,
+        "Flying Wing":          0.030,
+        "Canard":               0.058,
+        "Tandem Wing":          0.060,
     }
-    return base.get(configuration, 0.030)
+    return base.get(configuration, 0.055)
 
 
 def drag_polar(CL: np.ndarray, AR: float, CD0: float, e: float) -> np.ndarray:
@@ -58,6 +61,9 @@ def compute_performance(total_mass_kg: float,
     af  = get_airfoil(airfoil_name)
     e   = gd.oswald_e if hasattr(gd, 'oswald_e') else 0.82
     CD0 = estimate_CD0(configuration)
+    # Real-world correction: small UAVs have additional drag from
+    # surface roughness, gaps, hinges, antenna, wires. Add 30% to CD0.
+    CD0 = CD0 * 1.30
 
     Cl_a3D  = cl_alpha_3d(af["Cl_a"], gd.AR, gd.sweep_r, e)
     CL_max  = af["CL_max"] * 0.90
@@ -103,11 +109,15 @@ def compute_performance(total_mass_kg: float,
     D_cr   = q_cr * S * CD_cr
 
     # Total efficiency chain
-    eta_prop  = pd.eta_prop if hasattr(pd, 'eta_prop') else 0.80
+    # Note: prop efficiency at cruise is significantly lower than static (0.75→0.60)
+    # Additional losses: battery internal resistance (~0.92), wiring (~0.98)
+    eta_prop  = 0.60   # cruise prop efficiency (realistic for small fixed-pitch props)
     eta_motor = pd.eta_motor if hasattr(pd, 'eta_motor') else 0.85
     eta_esc   = pd.eta_esc   if hasattr(pd, 'eta_esc')   else 0.95
-    eta_total = eta_prop * eta_motor * eta_esc
-    eta_total = max(eta_total, 0.40)
+    eta_bat   = 0.92   # battery internal resistance losses
+    eta_wire  = 0.98   # wiring losses
+    eta_total = eta_prop * eta_motor * eta_esc * eta_bat * eta_wire
+    eta_total = max(eta_total, 0.35)
 
     P_shaft_cr = D_cr * V_cruise_use
     P_elec_cr  = P_shaft_cr / eta_total + extra_load_w
@@ -119,7 +129,7 @@ def compute_performance(total_mass_kg: float,
     CL_end = W / (q_end * S)
     CD_end = CD0 + CL_end**2 / (math.pi * e * gd.AR)
     D_end  = q_end * S * CD_end
-    P_end  = D_end * V_end / eta_total + extra_load_w
+    P_end  = D_end * V_end / eta_total + extra_load_w * 1.10  # 10% margin on aux loads
     T_end  = (usable_energy_wh / P_end) * 60   # minutes
 
     end_max    = float(np.max(T_end))
@@ -159,4 +169,3 @@ def compute_performance(total_mass_kg: float,
         "CD_plot":  CD_plot,
         "LD_plot":  LD_plot,
     }
-
