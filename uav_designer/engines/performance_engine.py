@@ -24,8 +24,63 @@ AIRFOIL_DB = {
 }
 
 
+
+def parse_naca4(code: str) -> dict | None:
+    """Parse NACA 4-digit airfoil: MPXX"""
+    import math
+    s = code.replace(" ", "").upper().replace("NACA", "")
+    if len(s) != 4 or not s.isdigit():
+        return None
+    M   = int(s[0]) / 100
+    P   = int(s[1]) / 10
+    T   = int(s[2:]) / 100
+    Cl_a = 2 * math.pi
+    if M == 0:
+        al0 = 0.0
+    else:
+        al0 = -math.degrees(2 * M * (1 - P + math.log(max(1 - P, 0.01)) * P))
+    CL_max = max(0.8, min(1.0 + 2.0*M + 0.5*(T - 0.12), 2.2))
+    return {"Cl_a": round(Cl_a, 3), "al0": round(al0, 2),
+            "CL_max": round(CL_max, 3), "M_pct": M*100, "T_pct": T*100,
+            "type": "4-digit"}
+
+
+def parse_naca5(code: str) -> dict | None:
+    """Parse NACA 5-digit airfoil: LPSXX"""
+    import math
+    s = code.replace(" ", "").upper().replace("NACA", "")
+    if len(s) != 5 or not s.isdigit():
+        return None
+    L  = int(s[0])
+    T  = int(s[3:]) / 100
+    Cl_a      = 2 * math.pi
+    CL_design = L * 3 / 20
+    al0       = -math.degrees(CL_design / Cl_a)
+    CL_max    = max(0.8, min(1.0 + CL_design + 0.3*(T - 0.12), 2.2))
+    return {"Cl_a": round(Cl_a, 3), "al0": round(al0, 2),
+            "CL_max": round(CL_max, 3), "CL_design": round(CL_design, 3),
+            "T_pct": T*100, "type": "5-digit"}
+
+
+def parse_naca(code: str) -> dict | None:
+    """Try to parse a NACA 4 or 5-digit code. Returns None if unrecognized."""
+    s = code.replace(" ", "").upper().replace("NACA", "")
+    if len(s) == 4 and s.isdigit():
+        return parse_naca4(code)
+    if len(s) == 5 and s.isdigit():
+        return parse_naca5(code)
+    return None
+
 def get_airfoil(name: str) -> dict:
-    return AIRFOIL_DB.get(name, AIRFOIL_DB["NACA 4412"])
+    # First try the preset database
+    if name in AIRFOIL_DB:
+        return AIRFOIL_DB[name]
+    # Then try to parse as a custom NACA code
+    parsed = parse_naca(name)
+    if parsed:
+        return {"Cl_a": parsed["Cl_a"], "al0": parsed["al0"], "CL_max": parsed["CL_max"]}
+    # Fallback
+    return AIRFOIL_DB["NACA 4412"]
 
 
 def cl_alpha_3d(Cl_a2D: float, AR: float, sweep_r: float, e: float) -> float:
