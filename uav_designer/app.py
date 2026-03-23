@@ -92,7 +92,6 @@ with st.sidebar:
 # TABS
 # ─────────────────────────────────────────────────────────────────────────────
 
-st.markdown("---")
 tabs = st.tabs([
     "📋 Mission",
     "📐 Geometry",
@@ -214,11 +213,11 @@ with tab_geom:
         st.caption("Enter design constraints and get recommended geometry ranges.")
         bc1, bc2 = st.columns(2)
         with bc1:
-            bs_mtow    = st.number_input("GTOW estimate (g)", 500, 10000, 2000, 100, key="bs_mtow")
-            bs_end     = st.slider("Target endurance (min)", 10, 180, 45, key="bs_end")
+            bs_mtow    = st.number_input("GTOW estimate (g)", 500, 10000, 2000, 100)
+            bs_end     = st.slider("Target endurance (min)", 10, 180, 45)
         with bc2:
-            bs_vcruis  = st.slider("Cruise speed (m/s)", 5.0, 40.0, 15.0, 0.5, key="bs_vcruis")
-            bs_payload = st.slider("Payload (g)", 0, 2000, 250, key="bs_payload")
+            bs_vcruis  = st.slider("Cruise speed (m/s)", 5.0, 40.0, 15.0, 0.5)
+            bs_payload = st.slider("Payload (g)", 0, 2000, 250)
 
         if st.button("🔧 Back-Solve"):
             bs = back_solve_geometry(bs_mtow, bs_end, bs_vcruis, bs_payload)
@@ -228,23 +227,35 @@ with tab_geom:
             bs = st.session_state["backsolve"]
             st.markdown("### Recommended Geometry")
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Wing Area", f"{bs['wing_area_m2']:.3f} m²")
-            m2.metric("Aspect Ratio", f"{bs['AR_range'][0]}–{bs['AR_range'][1]}")
-            m3.metric("Wingspan", f"{bs['span_range_m'][0]}–{bs['span_range_m'][1]} m")
-            m4.metric("Battery Mass", f"{bs['battery_mass_g'][0]:.0f}–{bs['battery_mass_g'][1]:.0f} g")
+            m1.metric("Wing Area", f"{bs['wing_area_m2']:.3f} m2")
+            m2.metric("Aspect Ratio", f"{bs['AR_range'][0]}-{bs['AR_range'][1]}")
+            m3.metric("Wingspan", f"{bs['span_range_m'][0]}-{bs['span_range_m'][1]} m")
+            m4.metric("Battery Mass", f"{bs['battery_mass_g'][0]:.0f}-{bs['battery_mass_g'][1]:.0f} g")
             st.info(
                 f"Estimated electrical power at cruise: **{bs['est_power_w']:.0f} W**  |  "
                 f"Energy needed: **{bs['est_energy_wh']:.1f} Wh**  |  "
-                f"Wing loading: **{bs['wing_loading_nm2']:.1f} N/m²**  |  "
+                f"Wing loading: **{bs['wing_loading_nm2']:.1f} N/m2**  |  "
                 f"Target V_stall: **{bs['V_stall_target']:.1f} m/s**"
             )
+            if st.button("Apply recommended values to geometry sliders"):
+                span_mid = (bs["span_range_m"][0] + bs["span_range_m"][1]) / 2
+                ar_mid   = (bs["AR_range"][0] + bs["AR_range"][1]) / 2
+                chord    = round(span_mid / ar_mid, 3)
+                st.session_state["apply_span"]  = round(span_mid, 2)
+                st.session_state["apply_chord"] = max(0.05, min(chord, 0.8))
+                st.success(
+                    f"Applied: Wingspan {span_mid:.2f} m, Root chord {chord:.3f} m. "
+                    "Scroll down to see the geometry sliders updated."
+                )
         st.divider()
 
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Wing")
-        span       = st.slider("Wingspan (m)", 0.3, 4.0, 1.4, 0.01)
-        root_chord = st.slider("Root chord (m)", 0.05, 0.8, 0.20, 0.005)
+        span       = st.slider("Wingspan (m)", 0.3, 4.0,
+                               float(st.session_state.get("apply_span", 1.4)), 0.01)
+        root_chord = st.slider("Root chord (m)", 0.05, 0.8,
+                               float(st.session_state.get("apply_chord", 0.20)), 0.005)
         taper      = st.slider("Taper ratio", 0.2, 1.0, 0.70, 0.01)
         sweep_deg  = st.slider("LE Sweep (°)", 0.0, 45.0, 0.0, 0.5)
         dihedral   = st.slider("Dihedral (°)", -5.0, 15.0, 3.0, 0.5)
@@ -290,7 +301,7 @@ with tab_geom:
     m6.metric("Wing Loading",   f"{gd.wing_loading:.1f} N/m²")
 
     st.divider()
-    st.pyplot(viz.plot_wing_planform(gd, sweep_deg, span, root_chord, taper), use_container_width=True)
+    st.pyplot(viz.plot_wing_planform(gd, sweep_deg), use_container_width=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -433,7 +444,9 @@ with tab_mass:
         st.divider()
         # Top-view visualizer (CENTREPIECE)
         st.subheader("Top-View Mass Layout")
-        top_fig = viz.plot_mass_layout(items, gd_now, config, fuse_L, cg_x, cg_lo, cg_hi, span, root_chord, taper, sweep_deg)
+        top_fig = viz.plot_mass_layout(
+            items, gd_now, config, fuse_L,
+            cg_x, cg_lo, cg_hi, sweep_deg=gd_now.sweep_r * 57.3)
         st.pyplot(top_fig, use_container_width=True)
 
         c1, c2 = st.columns(2)
