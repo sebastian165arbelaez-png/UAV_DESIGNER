@@ -213,11 +213,11 @@ with tab_geom:
         st.caption("Enter design constraints and get recommended geometry ranges.")
         bc1, bc2 = st.columns(2)
         with bc1:
-            bs_mtow    = st.number_input("GTOW estimate (g)", 500, 10000, 2000, 100)
-            bs_end     = st.slider("Target endurance (min)", 10, 180, 45)
+            bs_mtow    = st.number_input("GTOW estimate (g)", 500, 10000, 2000, 100, key="bs_mtow")
+            bs_end     = st.slider("Target endurance (min)", 10, 180, 45, key="bs_end")
         with bc2:
-            bs_vcruis  = st.slider("Cruise speed (m/s)", 5.0, 40.0, 15.0, 0.5)
-            bs_payload = st.slider("Payload (g)", 0, 2000, 250)
+            bs_vcruis  = st.slider("Cruise speed (m/s)", 5.0, 40.0, 15.0, 0.5, key="bs_vcruis")
+            bs_payload = st.slider("Payload (g)", 0, 2000, 250, key="bs_payload")
 
         if st.button("🔧 Back-Solve"):
             bs = back_solve_geometry(bs_mtow, bs_end, bs_vcruis, bs_payload)
@@ -475,9 +475,9 @@ with tab_perf:
         airfoil_now  = st.session_state.get("airfoil",     "NACA 4412")
         extra_load   = st.session_state.get("extra_load_w", 13.0)
         total_mass   = st.session_state.get("total_mass_kg", 1.9)
-        rho          = st.slider("Air density ρ (kg/m³)", 0.90, 1.225, 1.225, 0.005)
-        n_max        = st.slider("Max load factor n+", 1.5, 8.0, 3.0, 0.1)
-        n_min        = st.slider("Min load factor n−", -4.0, -0.5, -1.5, 0.1)
+        rho          = st.slider("Air density (kg/m3)", 0.90, 1.225, 1.225, 0.005, key="perf_rho")
+        n_max        = st.slider("Max load factor n+", 1.5, 8.0, 3.0, 0.1, key="perf_nmax")
+        n_min        = st.slider("Min load factor n-", -4.0, -0.5, -1.5, 0.1, key="perf_nmin")
 
         perf = compute_performance(
             total_mass, gd_now, pd_now,
