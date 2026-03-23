@@ -41,23 +41,21 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* Dark background */
     .stApp { background-color: #0d1117; color: #e6edf3; }
     .stSidebar { background-color: #161b22; }
     div[data-testid="stMetricValue"] { color: #58a6ff; font-size: 1.4rem; font-weight: bold; }
     div[data-testid="stMetricLabel"] { color: #8b949e; font-size: 0.8rem; }
-    .warning-critical { background: #3d1a1a; border-left: 4px solid #f78166;
-                        padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    .warning-warning  { background: #2d2110; border-left: 4px solid #ffa657;
-                        padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    .warning-caution  { background: #1a2a1a; border-left: 4px solid #3fb950;
-                        padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
-    .warning-info     { background: #161b22; border-left: 4px solid #58a6ff;
-                        padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
+    .warning-critical { background: #3d1a1a; border-left: 4px solid #f78166; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
+    .warning-warning  { background: #2d2110; border-left: 4px solid #ffa657; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
+    .warning-caution  { background: #1a2a1a; border-left: 4px solid #3fb950; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
+    .warning-info     { background: #161b22; border-left: 4px solid #58a6ff; padding: 8px 12px; border-radius: 4px; margin: 4px 0; }
     h1, h2, h3 { color: #58a6ff !important; }
-    .stTabs [data-baseweb="tab"]       { color: #8b949e; }
-    .stTabs [aria-selected="true"]     { color: #58a6ff; border-bottom: 2px solid #58a6ff; }
     .block-container { padding-top: 1rem; }
+    button[data-baseweb="tab"] { color: #e6edf3 !important; background-color: transparent !important; font-size: 15px !important; font-weight: 600 !important; padding: 8px 16px !important; }
+    button[data-baseweb="tab"]:hover { color: #58a6ff !important; }
+    button[data-baseweb="tab"][aria-selected="true"] { color: #58a6ff !important; border-bottom: 3px solid #58a6ff !important; }
+    div[data-baseweb="tab-list"] { background-color: #161b22 !important; border-bottom: 1px solid #30363d !important; gap: 4px !important; }
+    div[data-baseweb="tab-panel"] { padding-top: 1rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,6 +90,7 @@ with st.sidebar:
 # TABS
 # ─────────────────────────────────────────────────────────────────────────────
 
+st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs([
     "📋 Mission",
     "📐 Geometry",
