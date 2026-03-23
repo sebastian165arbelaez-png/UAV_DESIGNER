@@ -18,7 +18,7 @@ from engines.mission_engine       import interpret_mission
 from engines.config_engine        import score_configurations
 from engines.geometry_engine      import build_geometry, back_solve_geometry
 from engines.propulsion_engine    import build_propulsion, cruise_power, endurance_from_energy
-from engines.performance_engine   import compute_performance, get_airfoil, AIRFOIL_DB, parse_naca
+from engines.performance_engine   import compute_performance, get_airfoil, AIRFOIL_DB, parse_naca, suggest_airfoils, get_airfoil_coords
 from engines.mass_balance_engine  import (
     compute_cg, target_cg_range, packaging_score,
     default_mass_items, auto_place_battery
@@ -416,6 +416,63 @@ with tab_geom:
     st.divider()
     st.pyplot(viz.plot_wing_planform(gd, sweep_deg, span, root_chord, taper),
               use_container_width=True)
+
+    # ── AIRFOIL VISUALIZER ───────────────────────────────────────────────────
+    st.divider()
+    st.subheader("✈️ Airfoil Visualizer")
+
+    coords = get_airfoil_coords(airfoil_name)
+    if coords:
+        st.pyplot(viz.plot_airfoil_shape(airfoil_name, coords),
+                  use_container_width=True)
+    else:
+        st.info(f"Shape preview not available for {airfoil_name}. "
+                "Enter a NACA 4 or 5-digit code in Custom mode to see the profile.")
+
+    # ── AIRFOIL SUGGESTER ────────────────────────────────────────────────────
+    st.divider()
+    st.subheader("🎯 Airfoil Suggestions for Your Mission")
+
+    mission_now = st.session_state.get("mission")
+    if mission_now:
+        suggestions = suggest_airfoils(
+            mission_now.mission_type,
+            mission_now.endurance_min,
+            mission_now.cruise_speed,
+            mission_now.launch_method,
+            mission_now.payload_mass,
+        )
+
+        st.pyplot(viz.plot_airfoil_suggestions(suggestions),
+                  use_container_width=True)
+
+        st.markdown("### Top Recommendations")
+        for i, (name, score, reason) in enumerate(suggestions):
+            icon = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "  "
+            af   = get_airfoil(name)
+            desc = AIRFOIL_DB.get(name, {}).get("desc", "")
+            with st.expander(f"{icon} {name}  —  Score: {score:.0f}"):
+                st.markdown(f"**{desc}**")
+                st.caption(f"Why: {reason}")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("CL max",        f"{af['CL_max']:.2f}")
+                c2.metric("Cl alpha /rad", f"{af['Cl_a']:.3f}")
+                c3.metric("Alpha L0",      f"{af['al0']:.1f} deg")
+                re_range = AIRFOIL_DB.get(name, {}).get("Re_range", "N/A")
+                ld_typ   = AIRFOIL_DB.get(name, {}).get("LD_typical", "N/A")
+                st.caption(f"Best Reynolds number range: {re_range}  |  Typical L/D: {ld_typ}")
+
+                # Show shape for this suggestion
+                sug_coords = get_airfoil_coords(name)
+                if sug_coords:
+                    st.pyplot(viz.plot_airfoil_shape(name, sug_coords),
+                              use_container_width=True)
+
+                if st.button(f"Use {name} as my airfoil", key=f"use_{name}"):
+                    st.session_state["apply_airfoil"] = name
+                    st.success(f"Set airfoil to {name}. Go to Airfoil selector above to confirm.")
+    else:
+        st.info("Define your mission in the Mission tab first to get airfoil suggestions.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
