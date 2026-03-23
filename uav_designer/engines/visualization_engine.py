@@ -551,9 +551,9 @@ def plot_airfoil_shape(name: str, coords) -> plt.Figure:
     ax2.plot(alpha_deg, Cl_clipped, color=ACCENT, lw=2, label="Cl (thin airfoil theory)")
     ax2.axhline(0, color=BORDER, lw=0.8)
     ax2.axvline(0, color=BORDER, lw=0.8)
-    ax2.axhline(Cl_max_est,       color=WARN,   lw=1, linestyle="--",
+    ax2.axhline(Cl_max_est,       color=RED,   lw=1, linestyle="--",
                 label=f"CL_max ≈ {Cl_max_est:.2f}")
-    ax2.axhline(-Cl_max_est*0.85, color=WARN,   lw=1, linestyle="--")
+    ax2.axhline(-Cl_max_est*0.85, color=RED,   lw=1, linestyle="--")
     ax2.axvline(np.degrees(-al0_rad), color=ORANGE, lw=1, linestyle=":",
                 label=f"α_L0 ≈ {np.degrees(-al0_rad):.1f}°")
 
