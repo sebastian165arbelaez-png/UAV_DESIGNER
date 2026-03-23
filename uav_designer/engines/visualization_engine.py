@@ -164,21 +164,21 @@ def plot_endurance(perf: dict) -> plt.Figure:
 
 # ── 5. Wing Planform ──────────────────────────────────────────────────────────
 
-def plot_wing_planform(gd: GeometryDerived, sweep_deg: float) -> plt.Figure:
+def plot_wing_planform(gd: GeometryDerived, sweep_deg: float, span: float = 1.4, root_chord: float = 0.20, taper: float = 0.70) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(10, 5))
     fig.patch.set_facecolor(BG)
     _setup_ax(ax)
     ax.set_aspect("equal")
     ax.grid(True, color="#21262d", lw=0.5)
 
-    half_span = gd.span / 2
+    half_span = span / 2
     sweep_offset = half_span * math.tan(math.radians(sweep_deg))
 
     # Left wing panel
-    xl = [0, sweep_offset, sweep_offset + gd.tip_chord, gd.root_chord, 0]
+    xl = [0, sweep_offset, sweep_offset + gd.tip_chord, root_chord, 0]
     yl = [0, -half_span, -half_span, 0, 0]
     # Right wing panel (mirror)
-    xr = [0, sweep_offset, sweep_offset + gd.tip_chord, gd.root_chord, 0]
+    xr = [0, sweep_offset, sweep_offset + gd.tip_chord, root_chord, 0]
     yr = [0,  half_span,    half_span, 0, 0]
 
     ax.fill(xl, yl, color=ACCENT,  alpha=0.25)
@@ -188,8 +188,8 @@ def plot_wing_planform(gd: GeometryDerived, sweep_deg: float) -> plt.Figure:
 
     # MAC line
     # MAC LE is at approximately y=0 for unswept, at sweep_offset*2/3 for swept
-    mac_le_x = sweep_offset * (1 - gd.taper) / (1 + gd.taper) if gd.span > 0 else 0
-    mac_y    = half_span * (1 - gd.taper) / (3 * (1 + gd.taper)) * 2   # approx MAC spanwise station
+    mac_le_x = sweep_offset * (1 - taper) / (1 + taper) if gd.span > 0 else 0
+    mac_y    = half_span * (1 - taper) / (3 * (1 + taper)) * 2   # approx MAC spanwise station
     ax.plot([mac_le_x, mac_le_x + gd.MAC], [0, 0],
             color=ORANGE, lw=2.5, linestyle="--", label=f"MAC = {gd.MAC:.3f} m")
     ax.axvline(mac_le_x + 0.25 * gd.MAC, color=GREEN, lw=1.2, linestyle=":",
@@ -201,7 +201,7 @@ def plot_wing_planform(gd: GeometryDerived, sweep_deg: float) -> plt.Figure:
     ax.set_ylabel("Span [m]", fontsize=9)
     ax.set_title(
         f"Wing Planform  —  AR={gd.AR:.1f}  |  S={gd.S:.3f} m²  |  "
-        f"Taper={gd.taper:.2f}  |  Sweep={sweep_deg:.1f}°",
+        f"Taper={taper:.2f}  |  Sweep={sweep_deg:.1f}°",
         color=TEXT, fontsize=10, fontweight="bold")
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -248,7 +248,7 @@ def plot_mass_layout(items: List[MassItem],
     for sign in (-1, 1):
         tip_le_x = root_le_x + sweep_off
         wx = [root_le_x, tip_le_x, tip_le_x + gd.tip_chord,
-              root_le_x + gd.root_chord, root_le_x]
+              root_le_x + root_chord, root_le_x]
         wy = [0, sign * half_span, sign * half_span, 0, 0]
         ax.fill(wx, wy, color="#21262d", alpha=0.7, zorder=1)
         ax.plot(wx, wy, color=ACCENT, lw=1.5, zorder=3)
