@@ -11,14 +11,9 @@ from models.data_models import GeometryInputs, GeometryDerived
 
 def build_geometry(g: GeometryInputs, total_mass_kg: float,
                    rho: float = 1.225) -> tuple[GeometryDerived, list[str]]:
-    """
-    Returns (GeometryDerived, validation_errors).
-    validation_errors is empty if everything is fine.
-    """
     errors: list[str] = []
     d = GeometryDerived()
 
-    # ── Wing ──────────────────────────────────────────────────────────────
     if g.taper <= 0 or g.taper > 1.0:
         errors.append("Taper ratio must be between 0 (pointed tip) and 1.0 (rectangular).")
         g.taper = max(0.1, min(g.taper, 1.0))
@@ -36,12 +31,9 @@ def build_geometry(g: GeometryInputs, total_mass_kg: float,
     if g.root_chord < d.tip_chord:
         errors.append("Root chord is smaller than tip chord — taper ratio exceeds 1.0.")
 
-    # ── Wing loading ──────────────────────────────────────────────────────
     W = total_mass_kg * 9.81
     d.wing_loading = W / d.S if d.S > 0 else 0
 
-    # ── Tail volume coefficients ──────────────────────────────────────────
-    # VH = S_ht * l_t / (S * MAC)   VV = S_vt * l_t / (S * span)
     if d.S > 0 and d.MAC > 0 and g.span > 0:
         d.h_tail_volume = (g.h_tail_area * g.tail_arm) / (d.S * d.MAC)
         d.v_tail_volume = (g.v_tail_area * g.tail_arm) / (d.S * g.span)
@@ -51,12 +43,12 @@ def build_geometry(g: GeometryInputs, total_mass_kg: float,
 
     if d.h_tail_volume < 0.30:
         errors.append(
-            f"Horizontal tail volume coefficient {d.h_tail_volume:.2f} is low (typical: 0.35–0.50). "
+            f"Horizontal tail volume coefficient {d.h_tail_volume:.2f} is low (typical: 0.35-0.50). "
             "Aircraft may be longitudinally unstable."
         )
     if d.v_tail_volume < 0.02:
         errors.append(
-            f"Vertical tail volume coefficient {d.v_tail_volume:.3f} is low (typical: 0.025–0.05). "
+            f"Vertical tail volume coefficient {d.v_tail_volume:.3f} is low (typical: 0.025-0.05). "
             "Aircraft may lack yaw authority."
         )
 
@@ -66,25 +58,14 @@ def build_geometry(g: GeometryInputs, total_mass_kg: float,
 def back_solve_geometry(mtow_g: float, endurance_min: float,
                          cruise_speed: float, payload_g: float,
                          rho: float = 1.225) -> dict:
-    """
-    Requirement back-solver.
-    Given GTOW, endurance, cruise speed, and payload — estimate
-    what wing area, AR, and battery mass are likely needed.
-    Returns a dict of recommended ranges.
-    """
-    import math
-    G     = 9.81
-    mtow  = mtow_g / 1000        # kg
-    W     = mtow * G
+    G    = 9.81
+    mtow = mtow_g / 1000
+    W    = mtow * G
 
-    # Target wing loading for cruise (typical UAV: 20–80 N/m²)
-    # Back-solve from stall margin: V_cruise = 1.4 * V_stall
-    # V_stall = sqrt(2W / rho S CL_max)  → S = 2W / (rho * V_stall^2 * CL_max)
-    CL_max = 1.4
+    CL_max         = 1.4
     V_stall_target = cruise_speed / 1.4
-    S_needed = 2 * W / (rho * V_stall_target**2 * CL_max)
+    S_needed       = 2 * W / (rho * V_stall_target**2 * CL_max)
 
-    # Target AR: endurance-driven → high AR
     if endurance_min >= 60:
         AR_rec = (9, 14)
     elif endurance_min >= 30:
@@ -95,8 +76,6 @@ def back_solve_geometry(mtow_g: float, endurance_min: float,
     span_lo = math.sqrt(AR_rec[0] * S_needed)
     span_hi = math.sqrt(AR_rec[1] * S_needed)
 
-    # Battery mass: rough energy estimate
-    # P_cruise ~ drag * V; assume L/D ~12, eta_total=0.65
     CD0    = 0.025
     e      = 0.82
     AR_mid = (AR_rec[0] + AR_rec[1]) / 2
@@ -104,10 +83,13 @@ def back_solve_geometry(mtow_g: float, endurance_min: float,
     CD_cr  = CD0 + CL_cr**2 / (math.pi * e * AR_mid)
     D      = 0.5 * rho * cruise_speed**2 * S_needed * CD_cr
     P_elec = D * cruise_speed / 0.65
-    E_needed_wh = P_elec * (endurance_min / 60)
-    # LiPo: ~150–200 Wh/kg
-    bat_mass_g_lo = E_needed_wh / 0.20 * 1000
-    bat_mass_g_hi = E_needed_wh / 0.15 * 1000
+
+    # 80% usable battery factor applied
+    E_needed_wh = P_elec * (endurance_min / 60) / 0.80
+
+    # LiPo energy density: 150-200 Wh/kg = 0.150-0.200 Wh/g
+    bat_mass_g_lo = E_needed_wh / 0.200
+    bat_mass_g_hi = E_needed_wh / 0.150
 
     return {
         "wing_area_m2":     round(S_needed, 4),
