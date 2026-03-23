@@ -502,7 +502,7 @@ def plot_airfoil_shape(name: str, coords) -> plt.Figure:
     y_fill = np.concatenate([yu, yl[::-1]])
     ax.fill(x_fill, y_fill, color=ACCENT + "30", zorder=2)
     ax.plot(xu, yu, color=ACCENT,  lw=2,   label="Upper surface", zorder=3)
-    ax.plot(xl, yl, color=ACCENT2, lw=2,   label="Lower surface", zorder=3)
+    ax.plot(xl, yl, color=GREEN,   lw=2,   label="Lower surface", zorder=3)
     ax.plot(xc, yc, color=ORANGE,  lw=1.5, linestyle="--", label="Camber line", zorder=4)
     ax.axhline(0, color=BORDER, lw=0.8)
     ax.axvline(0, color=BORDER, lw=0.8)
