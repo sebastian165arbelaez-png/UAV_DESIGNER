@@ -188,7 +188,7 @@ def plot_wing_planform(gd: GeometryDerived, sweep_deg: float, span: float = 1.4,
 
     # MAC line
     # MAC LE is at approximately y=0 for unswept, at sweep_offset*2/3 for swept
-    mac_le_x = sweep_offset * (1 - taper) / (1 + taper) if gd.span > 0 else 0
+    mac_le_x = sweep_offset * (1 - taper) / (1 + taper) if span > 0 else 0
     mac_y    = half_span * (1 - taper) / (3 * (1 + taper)) * 2   # approx MAC spanwise station
     ax.plot([mac_le_x, mac_le_x + gd.MAC], [0, 0],
             color=ORANGE, lw=2.5, linestyle="--", label=f"MAC = {gd.MAC:.3f} m")
@@ -229,7 +229,7 @@ def plot_mass_layout(items: List[MassItem],
     ax.set_axisbelow(True)
 
     L    = fuselage_length
-    span = gd.span
+    span = span
     half_span = span / 2
     sweep_off = half_span * math.tan(math.radians(sweep_deg))
 
@@ -256,8 +256,8 @@ def plot_mass_layout(items: List[MassItem],
     # ── Tail surfaces ─────────────────────────────────────────────────────
     if configuration not in ("Flying Wing",):
         tail_x   = L * 0.88
-        h_tail_h = max(gd.span * 0.18, 0.10)
-        v_tail_h = max(gd.span * 0.08, 0.05)
+        h_tail_h = max(span * 0.18, 0.10)
+        v_tail_h = max(span * 0.08, 0.05)
         h_chord  = max(L * 0.14, 0.06)
         # H-tail
         for sign in (-1, 1):
