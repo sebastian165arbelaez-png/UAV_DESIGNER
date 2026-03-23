@@ -7,20 +7,57 @@ All speeds in m/s, forces in N, power in W, mass in kg.
 
 import math
 import numpy as np
+from typing import Optional
 from models.data_models import GeometryDerived, PropulsionDerived
 
 G       = 9.81
 RHO_SSL = 1.225
 
 AIRFOIL_DB = {
-    "NACA 2412":  {"Cl_a": 6.28, "al0": -2.1, "CL_max": 1.50},
-    "NACA 4412":  {"Cl_a": 6.28, "al0": -4.0, "CL_max": 1.65},
-    "NACA 0012":  {"Cl_a": 6.28, "al0":  0.0, "CL_max": 1.35},
-    "Clark-Y":    {"Cl_a": 6.00, "al0": -3.0, "CL_max": 1.45},
-    "S1223":      {"Cl_a": 6.20, "al0": -4.5, "CL_max": 2.20},
-    "E214":       {"Cl_a": 6.10, "al0": -3.8, "CL_max": 1.80},
-    "Flat plate": {"Cl_a": 6.28, "al0":  0.0, "CL_max": 0.90},
-    "NACA 4-digit (custom)": {"Cl_a": 6.28, "al0": -4.0, "CL_max": 1.60},
+    "NACA 2412":  {"Cl_a": 6.28, "al0": -2.1, "CL_max": 1.50,
+                   "desc": "Classic general-purpose airfoil. Moderate camber, good all-round performance.",
+                   "best_for": ["general", "trainer", "surveillance"],
+                   "Re_range": "500k-2M", "LD_typical": 12},
+    "NACA 4412":  {"Cl_a": 6.28, "al0": -4.0, "CL_max": 1.65,
+                   "desc": "Higher camber variant. Better lift at low speeds, slightly more drag.",
+                   "best_for": ["endurance", "cargo", "surveillance"],
+                   "Re_range": "500k-2M", "LD_typical": 13},
+    "NACA 0012":  {"Cl_a": 6.28, "al0":  0.0, "CL_max": 1.35,
+                   "desc": "Symmetric airfoil. Excellent for aerobatics, no pitching moment.",
+                   "best_for": ["aerobatics", "racing", "symmetric"],
+                   "Re_range": "500k-3M", "LD_typical": 10},
+    "NACA 2415":  {"Cl_a": 6.28, "al0": -2.1, "CL_max": 1.55,
+                   "desc": "Thicker variant of 2412. Better structural depth, slightly more drag.",
+                   "best_for": ["general", "cargo", "trainer"],
+                   "Re_range": "500k-2M", "LD_typical": 11},
+    "NACA 4415":  {"Cl_a": 6.28, "al0": -4.0, "CL_max": 1.70,
+                   "desc": "Thicker high-camber airfoil. Good lift, robust structure.",
+                   "best_for": ["endurance", "cargo", "surveillance"],
+                   "Re_range": "300k-1.5M", "LD_typical": 12},
+    "Clark-Y":    {"Cl_a": 6.00, "al0": -3.0, "CL_max": 1.45,
+                   "desc": "Historic flat-bottomed airfoil. Easy to build, predictable stall.",
+                   "best_for": ["trainer", "general", "easy-build"],
+                   "Re_range": "300k-1M", "LD_typical": 11},
+    "S1223":      {"Cl_a": 6.20, "al0": -4.5, "CL_max": 2.20,
+                   "desc": "High-lift Selig airfoil. Outstanding CL_max at low Re. Ideal for slow UAVs.",
+                   "best_for": ["endurance", "slow-flight", "hand-launch", "surveillance"],
+                   "Re_range": "100k-500k", "LD_typical": 15},
+    "E214":       {"Cl_a": 6.10, "al0": -3.8, "CL_max": 1.80,
+                   "desc": "Eppler high-performance section. Excellent L/D at low Re.",
+                   "best_for": ["endurance", "mapping", "efficiency"],
+                   "Re_range": "200k-800k", "LD_typical": 16},
+    "MH45":       {"Cl_a": 6.15, "al0": -2.5, "CL_max": 1.60,
+                   "desc": "Martin Hepperle reflexed airfoil. Designed for flying wings.",
+                   "best_for": ["flying-wing", "tailless"],
+                   "Re_range": "100k-500k", "LD_typical": 13},
+    "NACA 23012": {"Cl_a": 6.28, "al0": -2.7, "CL_max": 1.60,
+                   "desc": "5-digit series. High CL_max with low pitching moment.",
+                   "best_for": ["cargo", "endurance", "general"],
+                   "Re_range": "500k-2M", "LD_typical": 14},
+    "Flat plate":  {"Cl_a": 6.28, "al0":  0.0, "CL_max": 0.90,
+                   "desc": "Theoretical flat plate. Use only for baseline comparison.",
+                   "best_for": [],
+                   "Re_range": "all", "LD_typical": 6},
 }
 
 
@@ -70,6 +107,164 @@ def parse_naca(code: str) -> dict | None:
     if len(s) == 5 and s.isdigit():
         return parse_naca5(code)
     return None
+
+
+def naca4_coords(M_pct: float, P_pct: float, T_pct: float, n: int = 120):
+    """
+    Generate NACA 4-digit airfoil surface coordinates.
+    Returns (x_upper, y_upper, x_lower, y_lower, x_camber, y_camber)
+    """
+    M = M_pct / 100
+    P = P_pct / 10
+    T = T_pct / 100
+    x = np.linspace(0, 1, n)
+    yt = (T/0.2)*(0.2969*np.sqrt(x) - 0.1260*x - 0.3516*x**2
+                  + 0.2843*x**3 - 0.1015*x**4)
+    if P > 0:
+        yc  = np.where(x < P,
+                       (M/P**2)*(2*P*x - x**2),
+                       (M/(1-P)**2)*((1-2*P) + 2*P*x - x**2))
+        dyc = np.where(x < P,
+                       (2*M/P**2)*(P - x),
+                       (2*M/(1-P)**2)*(P - x))
+    else:
+        yc  = np.zeros_like(x)
+        dyc = np.zeros_like(x)
+    theta = np.arctan(dyc)
+    return (x - yt*np.sin(theta), yc + yt*np.cos(theta),
+            x + yt*np.sin(theta), yc - yt*np.cos(theta),
+            x, yc)
+
+
+def naca5_coords(L: int, P: int, T_pct: float, n: int = 120):
+    """
+    Generate approximate NACA 5-digit airfoil coordinates.
+    Uses modified mean camber line.
+    """
+    T = T_pct / 100
+    x = np.linspace(0, 1, n)
+    yt = (T/0.2)*(0.2969*np.sqrt(x) - 0.1260*x - 0.3516*x**2
+                  + 0.2843*x**3 - 0.1015*x**4)
+    # Approximate 5-digit camber using design CL
+    CL_d = L * 3 / 20
+    p    = P / 20
+    r    = 3.33333*(0.6075*p**3 - 0.1021*p)  # approx r coefficient
+    yc   = np.where(x < p,
+                    r/6*(x**3 - 3*p*x**2 + p**2*(3-p)*x),
+                    r*p**3/6*(1 - x))
+    dyc  = np.gradient(yc, x)
+    theta = np.arctan(dyc)
+    return (x - yt*np.sin(theta), yc + yt*np.cos(theta),
+            x + yt*np.sin(theta), yc - yt*np.cos(theta),
+            x, yc)
+
+
+def get_airfoil_coords(name: str):
+    """
+    Get airfoil coordinates for plotting.
+    Returns (xu, yu, xl, yl, xc, yc) or None if not computable.
+    """
+    s = name.replace(" ","").upper().replace("NACA","")
+    if len(s) == 4 and s.isdigit():
+        M, P, T = int(s[0]), int(s[1]), int(s[2:])
+        return naca4_coords(M, P, T)
+    if len(s) == 5 and s.isdigit():
+        L, P, S_d = int(s[0]), int(s[1]), int(s[2])
+        T = int(s[3:])
+        return naca5_coords(L, P, T)
+    # Handle preset names that are NACA codes
+    for code in ["2412","4412","0012","2415","4415","23012"]:
+        if code in name.replace(" ",""):
+            if len(code) == 4:
+                M,P,T = int(code[0]),int(code[1]),int(code[2:])
+                return naca4_coords(M, P, T)
+            else:
+                L,P_d,S_d = int(code[0]),int(code[1]),int(code[2])
+                T = int(code[3:])
+                return naca5_coords(L, P_d, T)
+    return None
+
+
+def suggest_airfoils(mission_type: str, endurance_min: float,
+                      cruise_speed: float, launch_method: str,
+                      payload_mass: float) -> list:
+    """
+    Suggest ranked airfoils based on mission parameters.
+    Returns list of (name, score, reason) tuples.
+    """
+    suggestions = []
+
+    for name, data in AIRFOIL_DB.items():
+        if name == "Flat plate":
+            continue
+        score  = 50.0
+        reason = []
+
+        best = data.get("best_for", [])
+
+        # Endurance priority
+        if endurance_min >= 45:
+            if any(b in best for b in ["endurance", "efficiency", "slow-flight"]):
+                score += 20
+                reason.append("high L/D suits endurance mission")
+            if data["LD_typical"] >= 14:
+                score += 10
+                reason.append(f"excellent L/D ~{data['LD_typical']}")
+            elif data["LD_typical"] >= 12:
+                score += 5
+
+        # Hand launch — need high CL_max for low stall speed
+        if launch_method == "Hand launch":
+            cl_max = data["CL_max"]
+            if cl_max >= 1.8:
+                score += 15
+                reason.append(f"high CL_max {cl_max:.2f} reduces stall speed")
+            elif cl_max >= 1.5:
+                score += 8
+
+        # Low cruise speed → high lift needed
+        if cruise_speed < 12:
+            if any(b in best for b in ["slow-flight","endurance","hand-launch"]):
+                score += 12
+                reason.append("suited to low-speed cruise")
+
+        # High speed → low drag, symmetric or thin preferred
+        if cruise_speed > 20:
+            if "racing" in best or "aerobatics" in best:
+                score += 10
+                reason.append("low-drag profile suits high speed")
+            if data["CL_max"] > 1.8:
+                score -= 8
+                reason.append("high-lift profile adds drag at speed")
+
+        # Mission type matching
+        m_lower = mission_type.lower()
+        if "surveillance" in m_lower or "isr" in m_lower:
+            if any(b in best for b in ["surveillance","endurance","efficiency"]):
+                score += 10
+                reason.append("good match for surveillance mission")
+        if "cargo" in m_lower:
+            if "cargo" in best:
+                score += 10
+                reason.append("handles higher wing loading well")
+        if "racing" in m_lower or "fpv" in m_lower:
+            if any(b in best for b in ["racing","aerobatics","symmetric"]):
+                score += 15
+                reason.append("suited to high-speed dynamic flight")
+        if "mapping" in m_lower:
+            if any(b in best for b in ["mapping","efficiency","endurance"]):
+                score += 10
+
+        # Flying wing penalty for most airfoils
+        if any(b in best for b in ["flying-wing","tailless"]):
+            score += 5  # bonus for reflexed profiles
+
+        suggestions.append((name, round(score, 1),
+                             "; ".join(reason) if reason else "general-purpose choice"))
+
+    suggestions.sort(key=lambda x: x[1], reverse=True)
+    return suggestions[:5]
+
 
 def get_airfoil(name: str) -> dict:
     # First try the preset database
