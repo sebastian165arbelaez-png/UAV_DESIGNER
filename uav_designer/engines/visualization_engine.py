@@ -341,16 +341,51 @@ def plot_mass_layout(items: List[MassItem],
         root_le_x = L * 0.28
         draw_wing_panel(ax, root_le_x, half_span, root_chord, tip_chord, sweep_off)
         # Twin booms
+        is_vtail_tb = "V-tail" in configuration
         boom_y = max(half_span * 0.55, fuselage_w * 2.5)
         for sign in (-1, 1):
             ax.plot([L*0.28, L], [sign*boom_y, sign*boom_y],
                     color=SUBTEXT, lw=3, zorder=2)
-            # H-tail at boom tips
-            htx = [L*0.82, L*0.82, L, L, L*0.82]
-            hty = [sign*boom_y, sign*(boom_y+h_tail_h*0.5),
-                   sign*(boom_y+h_tail_h*0.5), sign*boom_y, sign*boom_y]
-            ax.fill(htx, hty, color="#21262d", alpha=0.7, zorder=1)
-            ax.plot(htx, hty, color=ACCENT, lw=1.2, zorder=3)
+            if is_vtail_tb:
+                # Inverted V-tail (butterfly) — surfaces angle INWARD toward centerline
+                # Each surface goes from boom tip toward the aircraft centerline
+                vs  = h_tail_h * 0.65
+                vc  = h_chord * 0.90
+                y0  = sign * boom_y          # starts at boom tip
+                y1  = sign * boom_y * 0.30  # angles inward toward center
+                x0  = L * 0.83
+                x1  = L * 0.83 + vc * 0.85
+                vtx2 = [x0, x1, x1, x0, x0]
+                vty2 = [y0, y1, y1+vc*0.08*sign, y0, y0]
+                ax.fill(vtx2, vty2, color="#21262d", alpha=0.8, zorder=1)
+                ax.plot(vtx2, vty2, color=PURPLE, lw=1.8, zorder=3)
+            else:
+                # Twin vertical fins at each boom tip
+                fin_h = h_tail_h * 0.55
+                fin_c = h_chord * 0.9
+                # Fin (vertical, seen as thin rect in top view)
+                fin_w = fin_c * 0.08
+                finx = [L*0.83, L*0.83+fin_c, L*0.83+fin_c, L*0.83, L*0.83]
+                finy = [sign*(boom_y-fin_w), sign*(boom_y-fin_w),
+                        sign*(boom_y+fin_w), sign*(boom_y+fin_w), sign*(boom_y-fin_w)]
+                ax.fill(finx, finy, color=SUBTEXT, alpha=0.5, zorder=3)
+                ax.plot(finx, finy, color=SUBTEXT, lw=1.2, zorder=4)
+        if not is_vtail_tb:
+            # Horizontal stab spanning between the two boom tips
+            hs_x   = L * 0.83
+            hs_c   = h_chord * 0.9
+            hs_y_lo = -boom_y
+            hs_y_hi =  boom_y
+            # Fill the horizontal stab panel
+            ax.fill([hs_x, hs_x+hs_c, hs_x+hs_c, hs_x],
+                    [hs_y_lo, hs_y_lo, hs_y_hi, hs_y_hi],
+                    color="#21262d", alpha=0.6, zorder=1)
+            ax.plot([hs_x, hs_x+hs_c, hs_x+hs_c, hs_x, hs_x],
+                    [hs_y_lo, hs_y_lo, hs_y_hi, hs_y_hi, hs_y_lo],
+                    color=ACCENT, lw=1.5, zorder=3)
+            ax.text(hs_x + hs_c*0.5, boom_y + 0.03, "H-STAB",
+                    color=ACCENT, fontsize=6.5, ha="center", fontweight="bold")
+
         # Pusher motor at rear of pod
         ax.annotate("", xy=(L*0.68, 0), xytext=(L*0.55, 0),
                     arrowprops=dict(arrowstyle="->", color=RED, lw=2))
