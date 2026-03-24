@@ -240,59 +240,150 @@ def plot_mass_layout(items: List[MassItem],
 
     fuselage_w = max(L * 0.09, 0.06)
 
-    # ── Draw fuselage ──────────────────────────────────────────────────────
-    fuse = mpatches.FancyBboxPatch(
-        (0, -fuselage_w / 2), L, fuselage_w,
-        boxstyle="round,pad=0.01",
-        linewidth=1.5, edgecolor=SUBTEXT,
-        facecolor="#1c2230", zorder=2)
-    ax.add_patch(fuse)
-
-    # ── Draw wing ─────────────────────────────────────────────────────────
-    root_le_x = L * 0.30    # wing leading edge at 30% of fuselage
-    for sign in (-1, 1):
-        tip_le_x = root_le_x + sweep_off
-        wx = [root_le_x, tip_le_x, tip_le_x + tip_chord,
-              root_le_x + root_chord, root_le_x]
-        wy = [0, sign * half_span, sign * half_span, 0, 0]
-        ax.fill(wx, wy, color="#21262d", alpha=0.7, zorder=1)
-        ax.plot(wx, wy, color=ACCENT, lw=1.5, zorder=3)
-
-    # ── Tail surfaces ─────────────────────────────────────────────────────
-    if configuration not in ("Flying Wing",):
-        tail_x   = L * 0.88
-        h_tail_h = max(span * 0.18, 0.10)
-        v_tail_h = max(span * 0.08, 0.05)
-        h_chord  = max(L * 0.14, 0.06)
-        # H-tail
+    def draw_wing_panel(ax, le_x, span_h, rc, tc, sw_off, color=ACCENT, alpha=0.7):
         for sign in (-1, 1):
-            htx = [tail_x, tail_x, tail_x + h_chord, tail_x + h_chord, tail_x]
-            hty = [0, sign * h_tail_h, sign * h_tail_h, 0, 0]
+            tip_le = le_x + sw_off
+            wx = [le_x, tip_le, tip_le + tc, le_x + rc, le_x]
+            wy = [0, sign * span_h, sign * span_h, 0, 0]
+            ax.fill(wx, wy, color="#21262d", alpha=alpha, zorder=1)
+            ax.plot(wx, wy, color=color, lw=1.5, zorder=3)
+
+    def draw_htail(ax, tx, h, chord, color=ACCENT):
+        for sign in (-1, 1):
+            htx = [tx, tx, tx + chord, tx + chord, tx]
+            hty = [0, sign * h, sign * h, 0, 0]
+            ax.fill(htx, hty, color="#21262d", alpha=0.7, zorder=1)
+            ax.plot(htx, hty, color=color, lw=1.2, zorder=3)
+
+    h_tail_h = max(span * 0.18, 0.10)
+    h_chord  = max(L * 0.14, 0.06)
+    small_span = span * 0.35   # canard / forward wing span
+    small_chord = root_chord * 0.7
+
+    # ── Configuration-specific drawing ────────────────────────────────────
+    if configuration == "Flying Wing":
+        # Just a wide swept wing, no fuselage tube, no tail
+        root_le_x = L * 0.25
+        draw_wing_panel(ax, root_le_x, half_span, root_chord*1.4,
+                        tip_chord*0.4, sweep_off*1.5, ACCENT)
+        # No tail, no fuselage — just a center pod
+        pod = mpatches.FancyBboxPatch(
+            (L*0.20, -fuselage_w*0.6), L*0.45, fuselage_w*1.2,
+            boxstyle="round,pad=0.01", linewidth=1.5,
+            edgecolor=SUBTEXT, facecolor="#1c2230", zorder=2)
+        ax.add_patch(pod)
+        # Motor at rear center
+        ax.annotate("", xy=(L*0.72, 0), xytext=(L*0.60, 0),
+                    arrowprops=dict(arrowstyle="->", color=RED, lw=2))
+        ax.text(L*0.62, fuselage_w*0.8, "MOTOR", color=RED,
+                fontsize=7, fontweight="bold", ha="left")
+
+    elif configuration == "Canard":
+        # Fuselage
+        fuse = mpatches.FancyBboxPatch(
+            (0, -fuselage_w/2), L, fuselage_w,
+            boxstyle="round,pad=0.01", linewidth=1.5,
+            edgecolor=SUBTEXT, facecolor="#1c2230", zorder=2)
+        ax.add_patch(fuse)
+        # Small canard at front (~15% chord)
+        draw_wing_panel(ax, L*0.12, small_span*0.6, small_chord,
+                        small_chord*0.7, 0, PURPLE, alpha=0.5)
+        ax.text(L*0.12, small_span*0.65, "CANARD", color=PURPLE,
+                fontsize=7, fontweight="bold", ha="left")
+        # Main wing at ~50%
+        root_le_x = L * 0.48
+        draw_wing_panel(ax, root_le_x, half_span, root_chord, tip_chord, sweep_off)
+        # V-tail only (no H-tail — canard provides pitch)
+        tail_x = L * 0.88
+        vtx = [tail_x, tail_x+h_chord, tail_x+h_chord, tail_x, tail_x]
+        vty = [-h_tail_h*0.3, -h_tail_h*0.3, h_tail_h*0.3, h_tail_h*0.3, -h_tail_h*0.3]
+        ax.fill(vtx, vty, color=SUBTEXT, alpha=0.25, zorder=2)
+        ax.plot(vtx, vty, color=SUBTEXT, lw=1, zorder=3)
+        # Tractor motor
+        ax.annotate("", xy=(0, 0), xytext=(L*0.10, 0),
+                    arrowprops=dict(arrowstyle="<-", color=RED, lw=2))
+        ax.text(0, fuselage_w*0.9, "MOTOR", color=RED,
+                fontsize=7, fontweight="bold", ha="left")
+
+    elif configuration == "Tandem Wing":
+        # Fuselage
+        fuse = mpatches.FancyBboxPatch(
+            (0, -fuselage_w/2), L, fuselage_w,
+            boxstyle="round,pad=0.01", linewidth=1.5,
+            edgecolor=SUBTEXT, facecolor="#1c2230", zorder=2)
+        ax.add_patch(fuse)
+        # Forward wing at ~20%
+        draw_wing_panel(ax, L*0.18, half_span*0.85,
+                        root_chord*0.95, tip_chord*0.95, sweep_off*0.5,
+                        ACCENT, alpha=0.6)
+        ax.text(L*0.18, half_span*0.9, "FWD WING", color=ACCENT,
+                fontsize=7, fontweight="bold")
+        # Rear wing at ~65% — slightly smaller
+        draw_wing_panel(ax, L*0.60, half_span*0.80,
+                        root_chord*0.85, tip_chord*0.85, sweep_off,
+                        GREEN, alpha=0.6)
+        ax.text(L*0.60, half_span*0.85, "AFT WING", color=GREEN,
+                fontsize=7, fontweight="bold")
+        # Tractor motor
+        ax.annotate("", xy=(0, 0), xytext=(L*0.10, 0),
+                    arrowprops=dict(arrowstyle="<-", color=RED, lw=2))
+        ax.text(0, fuselage_w*0.9, "MOTOR", color=RED,
+                fontsize=7, fontweight="bold", ha="left")
+
+    elif configuration == "Twin-Boom Pusher":
+        # Central pod
+        pod = mpatches.FancyBboxPatch(
+            (0, -fuselage_w*0.8), L*0.65, fuselage_w*1.6,
+            boxstyle="round,pad=0.01", linewidth=1.5,
+            edgecolor=SUBTEXT, facecolor="#1c2230", zorder=2)
+        ax.add_patch(pod)
+        # Main wing at 30%
+        root_le_x = L * 0.28
+        draw_wing_panel(ax, root_le_x, half_span, root_chord, tip_chord, sweep_off)
+        # Twin booms
+        boom_y = max(half_span * 0.55, fuselage_w * 2.5)
+        for sign in (-1, 1):
+            ax.plot([L*0.28, L], [sign*boom_y, sign*boom_y],
+                    color=SUBTEXT, lw=3, zorder=2)
+            # H-tail at boom tips
+            htx = [L*0.82, L*0.82, L, L, L*0.82]
+            hty = [sign*boom_y, sign*(boom_y+h_tail_h*0.5),
+                   sign*(boom_y+h_tail_h*0.5), sign*boom_y, sign*boom_y]
             ax.fill(htx, hty, color="#21262d", alpha=0.7, zorder=1)
             ax.plot(htx, hty, color=ACCENT, lw=1.2, zorder=3)
-        # V-tail (top view = thin rectangle)
-        vtx = [tail_x, tail_x + h_chord, tail_x + h_chord, tail_x, tail_x]
-        vty = [-v_tail_h/4, -v_tail_h/4, v_tail_h/4, v_tail_h/4, -v_tail_h/4]
-        ax.fill(vtx, vty, color=SUBTEXT, alpha=0.25, zorder=2)
-
-    # ── Twin-boom lines ────────────────────────────────────────────────────
-    if configuration == "Twin-Boom Pusher":
-        boom_y = fuselage_w * 1.8
-        for sign in (-1, 1):
-            ax.plot([L * 0.28, L], [sign * boom_y, sign * boom_y],
-                    color=SUBTEXT, lw=2, zorder=2)
-
-    # ── Motor position ────────────────────────────────────────────────────
-    if configuration in ("Conventional Tractor",):
-        ax.annotate("", xy=(0, 0), xytext=(L * 0.12, 0),
-                    arrowprops=dict(arrowstyle="<-", color=RED, lw=2))
-        ax.text(0, fuselage_w * 0.8, "MOTOR", color=RED,
-                fontsize=7, fontweight="bold", ha="left")
-    elif configuration in ("Conventional Pusher", "Twin-Boom Pusher"):
-        ax.annotate("", xy=(L, 0), xytext=(L * 0.88, 0),
+        # Pusher motor at rear of pod
+        ax.annotate("", xy=(L*0.68, 0), xytext=(L*0.55, 0),
                     arrowprops=dict(arrowstyle="->", color=RED, lw=2))
-        ax.text(L * 0.88, fuselage_w * 0.8, "MOTOR", color=RED,
+        ax.text(L*0.55, fuselage_w*0.9, "MOTOR", color=RED,
                 fontsize=7, fontweight="bold", ha="left")
+
+    else:
+        # Conventional Tractor or Conventional Pusher
+        fuse = mpatches.FancyBboxPatch(
+            (0, -fuselage_w/2), L, fuselage_w,
+            boxstyle="round,pad=0.01", linewidth=1.5,
+            edgecolor=SUBTEXT, facecolor="#1c2230", zorder=2)
+        ax.add_patch(fuse)
+        root_le_x = L * 0.30
+        draw_wing_panel(ax, root_le_x, half_span, root_chord, tip_chord, sweep_off)
+        # H-tail
+        tail_x = L * 0.88
+        draw_htail(ax, tail_x, h_tail_h, h_chord)
+        vtx = [tail_x, tail_x+h_chord, tail_x+h_chord, tail_x, tail_x]
+        vty = [-h_tail_h*0.25, -h_tail_h*0.25, h_tail_h*0.25, h_tail_h*0.25, -h_tail_h*0.25]
+        ax.fill(vtx, vty, color=SUBTEXT, alpha=0.25, zorder=2)
+        if configuration == "Conventional Tractor":
+            ax.annotate("", xy=(0, 0), xytext=(L*0.12, 0),
+                        arrowprops=dict(arrowstyle="<-", color=RED, lw=2))
+            ax.text(0, fuselage_w*0.9, "MOTOR", color=RED,
+                    fontsize=7, fontweight="bold", ha="left")
+        else:
+            ax.annotate("", xy=(L, 0), xytext=(L*0.88, 0),
+                        arrowprops=dict(arrowstyle="->", color=RED, lw=2))
+            ax.text(L*0.88, fuselage_w*0.9, "MOTOR", color=RED,
+                    fontsize=7, fontweight="bold", ha="left")
+
+    root_le_x = L * 0.30  # for MAC reference line below
 
     # ── MAC + CG target band ──────────────────────────────────────────────
     mac_le = root_le_x + sweep_off * 0.3
