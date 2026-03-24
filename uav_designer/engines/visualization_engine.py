@@ -171,7 +171,8 @@ def plot_wing_planform(gd: GeometryDerived, sweep_deg: float, span: float = 1.4,
     ax.set_aspect("equal")
     ax.grid(True, color="#21262d", lw=0.5)
 
-    half_span = span / 2
+    half_span    = span / 2
+    tip_chord    = root_chord * taper
     sweep_offset = half_span * math.tan(math.radians(sweep_deg))
 
     # Left wing panel
