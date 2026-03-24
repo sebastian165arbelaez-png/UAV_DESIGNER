@@ -321,64 +321,151 @@ with tab_geom:
                 st.success(f"Applied: Wingspan {sp_mid:.2f} m, Root chord {ch:.3f} m.")
         st.divider()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Wing")
-        span       = st.slider("Wingspan (m)", 0.3, 4.0,
-                               float(ss_get("apply_span", 1.4)), 0.01)
-        root_chord = st.slider("Root chord (m)", 0.05, 0.8,
-                               float(ss_get("apply_chord", 0.20)), 0.005)
-        taper      = st.slider("Taper ratio", 0.2, 1.0, 0.70, 0.01)
-        sweep_deg  = st.slider("LE Sweep (deg)", 0.0, 45.0, 0.0, 0.5)
-        dihedral   = st.slider("Dihedral (deg)", -5.0, 15.0, 3.0, 0.5)
-        oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.82, 0.01)
-
-    with col2:
-        st.subheader("Tail & Fuselage")
-        fuselage_length = st.slider("Fuselage length (m)", 0.30, 2.0, 0.80, 0.01)
-        tail_arm        = st.slider("Tail arm (m)", 0.10, 1.5, 0.60, 0.01)
-        h_tail_area     = st.slider("H-tail area (m2)", 0.005, 0.20, 0.04, 0.005)
-        v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.02, 0.002)
-        st.subheader("Airfoil")
-        airfoil_mode = st.radio("Airfoil input mode",
+    # ── AIRFOIL SELECTOR (shared across all configs) ─────────────────────
+    def airfoil_selector():
+        mode = st.radio("Airfoil input mode",
             ["Preset library", "Custom NACA code"],
             horizontal=True, key="airfoil_mode")
-
-        if airfoil_mode == "Preset library":
-            airfoil_name = st.selectbox("Select airfoil", list(AIRFOIL_DB.keys()))
+        if mode == "Preset library":
+            return st.selectbox("Select airfoil", list(AIRFOIL_DB.keys()))
         else:
             custom_code = st.text_input(
-                "Enter NACA code (4 or 5 digit)",
-                value="2412",
-                placeholder="e.g. 2412, 4415, 23012",
-                key="custom_naca"
-            )
-            airfoil_name = f"NACA {custom_code.strip().upper().replace('NACA','').strip()}"
-            parsed = parse_naca(airfoil_name)
+                "Enter NACA code (4 or 5 digit)", value="2412",
+                placeholder="e.g. 2412, 4415, 23012", key="custom_naca")
+            name = f"NACA {custom_code.strip().upper().replace('NACA','').strip()}"
+            parsed = parse_naca(name)
             if parsed:
-                st.success(f"✅ Recognized: {airfoil_name}")
+                st.success(f"Recognized: {name}")
                 pc1, pc2, pc3 = st.columns(3)
                 pc1.metric("Cl alpha (/rad)", f"{parsed['Cl_a']:.3f}")
                 pc2.metric("Alpha L0 (deg)",  f"{parsed['al0']:.2f}")
                 pc3.metric("CL max est.",     f"{parsed['CL_max']:.3f}")
-                if parsed.get("type") == "4-digit":
-                    st.caption(
-                        f"Max camber: {parsed['M_pct']:.1f}%  |  "
-                        f"Max thickness: {parsed['T_pct']:.1f}%  |  "
-                        f"Parameters computed via thin airfoil theory."
-                    )
+                t = "4-digit" if parsed.get("type") == "4-digit" else "5-digit"
+                if t == "4-digit":
+                    st.caption(f"Max camber: {parsed['M_pct']:.1f}%  |  Thickness: {parsed['T_pct']:.1f}%")
                 else:
-                    st.caption(
-                        f"Design CL: {parsed.get('CL_design', 'N/A')}  |  "
-                        f"Max thickness: {parsed['T_pct']:.1f}%  |  "
-                        f"5-digit series (reflexed camber line)."
-                    )
+                    st.caption(f"Design CL: {parsed.get('CL_design','N/A')}  |  Thickness: {parsed['T_pct']:.1f}%")
             else:
-                st.error(
-                    f"Could not parse '{custom_code}' as a NACA 4 or 5-digit code. "
-                    "Examples: 0012, 2412, 4415, 23012, 63412"
-                )
-                airfoil_name = "NACA 4412"  # fallback
+                st.error(f"Could not parse '{custom_code}'. Try: 0012, 2412, 4415, 23012")
+                name = "NACA 4412"
+            return name
+
+    # ── CONFIGURATION-AWARE GEOMETRY INPUTS ──────────────────────────────
+    if configuration == "Flying Wing":
+        st.info("✈️ Flying Wing — no tail surfaces. Use reflexed airfoil (e.g. MH45) for pitch stability.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Wing")
+            span       = st.slider("Wingspan (m)", 0.5, 4.0, float(ss_get("apply_span", 1.6)), 0.01)
+            root_chord = st.slider("Root chord (m)", 0.10, 1.0, float(ss_get("apply_chord", 0.30)), 0.005)
+            taper      = st.slider("Taper ratio", 0.1, 1.0, 0.40, 0.01)
+            sweep_deg  = st.slider("LE Sweep (deg)", 5.0, 50.0, 25.0, 0.5)
+            dihedral   = st.slider("Dihedral / Winglet angle (deg)", -5.0, 15.0, 3.0, 0.5)
+            oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.85, 0.01)
+        with col2:
+            st.subheader("Center Pod")
+            fuselage_length = st.slider("Pod length (m)", 0.20, 1.0, 0.35, 0.01)
+            # Flying wings have no tail — set dummy values
+            tail_arm    = span * 0.35   # effective pitch arm from wing geometry
+            h_tail_area = 0.0
+            v_tail_area = 0.01          # small winglet area
+            st.caption(f"Effective pitch arm: {tail_arm:.2f} m (35% of span)")
+            st.caption("No horizontal tail. Pitch control via elevons.")
+            st.subheader("Airfoil")
+            airfoil_name = airfoil_selector()
+
+    elif configuration == "Canard":
+        st.info("🔀 Canard — forward lifting surface provides pitch control. No horizontal tail.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Main Wing")
+            span       = st.slider("Main wingspan (m)", 0.5, 4.0, float(ss_get("apply_span", 1.4)), 0.01)
+            root_chord = st.slider("Main root chord (m)", 0.05, 0.8, float(ss_get("apply_chord", 0.22)), 0.005)
+            taper      = st.slider("Main taper ratio", 0.2, 1.0, 0.70, 0.01)
+            sweep_deg  = st.slider("Main LE Sweep (deg)", 0.0, 35.0, 5.0, 0.5)
+            dihedral   = st.slider("Dihedral (deg)", -5.0, 15.0, 3.0, 0.5)
+            oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.82, 0.01)
+        with col2:
+            st.subheader("Canard Surface")
+            canard_arm      = st.slider("Canard arm (m, nose to canard LE)", 0.05, 0.5, 0.12, 0.01)
+            canard_area     = st.slider("Canard area (m2)", 0.005, 0.10, 0.020, 0.005)
+            fuselage_length = st.slider("Fuselage length (m)", 0.30, 2.0, 0.85, 0.01)
+            v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.020, 0.002)
+            # Canard acts as H-tail — use canard area and arm for volume coefficient
+            tail_arm        = fuselage_length * 0.75
+            h_tail_area     = canard_area
+            st.caption(f"Canard volume coeff ≈ {(canard_area * canard_arm):.4f} m³")
+            st.subheader("Airfoil")
+            airfoil_name = airfoil_selector()
+
+    elif configuration == "Tandem Wing":
+        st.info("🛩️ Tandem Wing — two lifting wings of similar size. No conventional tail.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Forward Wing")
+            span       = st.slider("Forward wingspan (m)", 0.5, 3.5, float(ss_get("apply_span", 1.3)), 0.01)
+            root_chord = st.slider("Forward root chord (m)", 0.05, 0.8, float(ss_get("apply_chord", 0.22)), 0.005)
+            taper      = st.slider("Forward taper ratio", 0.2, 1.0, 0.75, 0.01)
+            sweep_deg  = st.slider("Forward LE Sweep (deg)", 0.0, 25.0, 0.0, 0.5)
+            dihedral   = st.slider("Dihedral (deg)", -5.0, 15.0, 3.0, 0.5)
+            oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.82, 0.01)
+        with col2:
+            st.subheader("Aft Wing")
+            aft_span    = st.slider("Aft wingspan (m)", 0.5, 3.5, float(ss_get("apply_span", 1.2)), 0.01)
+            aft_chord   = st.slider("Aft root chord (m)", 0.05, 0.8, float(ss_get("apply_chord", 0.20)), 0.005)
+            wing_sep    = st.slider("Wing separation (m)", 0.2, 1.5, 0.55, 0.01)
+            fuselage_length = st.slider("Fuselage length (m)", 0.40, 2.0, 0.90, 0.01)
+            # Tandem: effective tail arm = separation between wings
+            tail_arm    = wing_sep
+            h_tail_area = (aft_span * aft_chord * 0.85) / 2   # aft wing acts as H-tail
+            v_tail_area = 0.015
+            st.caption(f"Aft wing area ≈ {aft_span * aft_chord * 0.85:.4f} m²")
+            st.caption(f"Wing separation: {wing_sep:.2f} m")
+            st.subheader("Airfoil")
+            airfoil_name = airfoil_selector()
+
+    elif configuration == "Twin-Boom Pusher":
+        st.info("🔧 Twin-Boom Pusher — motor at rear, twin booms carry tail surfaces.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Wing")
+            span       = st.slider("Wingspan (m)", 0.5, 4.0, float(ss_get("apply_span", 1.5)), 0.01)
+            root_chord = st.slider("Root chord (m)", 0.05, 0.8, float(ss_get("apply_chord", 0.22)), 0.005)
+            taper      = st.slider("Taper ratio", 0.2, 1.0, 0.70, 0.01)
+            sweep_deg  = st.slider("LE Sweep (deg)", 0.0, 30.0, 5.0, 0.5)
+            dihedral   = st.slider("Dihedral (deg)", -5.0, 15.0, 3.0, 0.5)
+            oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.82, 0.01)
+        with col2:
+            st.subheader("Booms & Tail")
+            boom_length     = st.slider("Boom length (m)", 0.3, 1.5, 0.70, 0.01)
+            fuselage_length = st.slider("Pod length (m)", 0.25, 1.2, 0.55, 0.01)
+            h_tail_area     = st.slider("H-tail area at boom tips (m2)", 0.005, 0.15, 0.035, 0.005)
+            v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.020, 0.002)
+            tail_arm        = boom_length * 0.85
+            st.caption(f"Effective tail arm: {tail_arm:.2f} m")
+            st.subheader("Airfoil")
+            airfoil_name = airfoil_selector()
+
+    else:
+        # Conventional Tractor or Conventional Pusher
+        label = "Pusher" if "Pusher" in configuration else "Tractor"
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Wing")
+            span       = st.slider("Wingspan (m)", 0.3, 4.0, float(ss_get("apply_span", 1.4)), 0.01)
+            root_chord = st.slider("Root chord (m)", 0.05, 0.8, float(ss_get("apply_chord", 0.20)), 0.005)
+            taper      = st.slider("Taper ratio", 0.2, 1.0, 0.70, 0.01)
+            sweep_deg  = st.slider("LE Sweep (deg)", 0.0, 45.0, 0.0, 0.5)
+            dihedral   = st.slider("Dihedral (deg)", -5.0, 15.0, 3.0, 0.5)
+            oswald_e   = st.slider("Oswald factor e", 0.50, 1.0, 0.82, 0.01)
+        with col2:
+            st.subheader("Tail & Fuselage")
+            fuselage_length = st.slider("Fuselage length (m)", 0.30, 2.0, 0.80, 0.01)
+            tail_arm        = st.slider("Tail arm (m)", 0.10, 1.5, 0.60, 0.01)
+            h_tail_area     = st.slider("H-tail area (m2)", 0.005, 0.20, 0.04, 0.005)
+            v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.02, 0.002)
+            st.subheader("Airfoil")
+            airfoil_name = airfoil_selector()
 
     geom_in = GeometryInputs(
         span=span, root_chord=root_chord, taper=taper,
