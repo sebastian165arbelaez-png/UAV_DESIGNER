@@ -18,6 +18,10 @@ CONFIGURATIONS = [
     "Tandem Wing",
 ]
 
+def strip_tail(name: str) -> str:
+    return (name.replace(" (H-tail)","").replace(" (V-tail)","")
+                .replace(" (Inverted V-tail)",""))
+
 CONFIG_DESCRIPTIONS = {
     "Conventional Tractor":
         "Classic layout: motor at nose, tail at rear. Best-understood aerodynamics, "
@@ -50,7 +54,8 @@ DIFFICULTY = {
 
 
 def score_configurations(m: MissionRequirements,
-                          pressures: Dict[str, float]) -> List[ConfigurationScore]:
+                          pressures: Dict[str, float],
+                          selected: str = "") -> List[ConfigurationScore]:
     """
     Score every candidate configuration against the mission.
     Returns a list sorted best → worst.
