@@ -175,10 +175,10 @@ def plot_wing_planform(gd: GeometryDerived, sweep_deg: float, span: float = 1.4,
     sweep_offset = half_span * math.tan(math.radians(sweep_deg))
 
     # Left wing panel
-    xl = [0, sweep_offset, sweep_offset + gd.tip_chord, root_chord, 0]
+    xl = [0, sweep_offset, sweep_offset + tip_chord, root_chord, 0]
     yl = [0, -half_span, -half_span, 0, 0]
     # Right wing panel (mirror)
-    xr = [0, sweep_offset, sweep_offset + gd.tip_chord, root_chord, 0]
+    xr = [0, sweep_offset, sweep_offset + tip_chord, root_chord, 0]
     yr = [0,  half_span,    half_span, 0, 0]
 
     ax.fill(xl, yl, color=ACCENT,  alpha=0.25)
@@ -217,10 +217,14 @@ def plot_mass_layout(items: List[MassItem],
                      cg_x: float,
                      cg_lo: float,
                      cg_hi: float,
+                     span: float = 1.4,
+                     root_chord: float = 0.20,
+                     taper: float = 0.70,
                      sweep_deg: float = 0) -> plt.Figure:
     """
     Engineering top-view showing aircraft outline and internal mass arrangement.
     """
+    tip_chord = root_chord * taper
     fig, ax = plt.subplots(figsize=(13, 7))
     fig.patch.set_facecolor(BG)
     _setup_ax(ax)
@@ -247,7 +251,7 @@ def plot_mass_layout(items: List[MassItem],
     root_le_x = L * 0.30    # wing leading edge at 30% of fuselage
     for sign in (-1, 1):
         tip_le_x = root_le_x + sweep_off
-        wx = [root_le_x, tip_le_x, tip_le_x + gd.tip_chord,
+        wx = [root_le_x, tip_le_x, tip_le_x + tip_chord,
               root_le_x + root_chord, root_le_x]
         wy = [0, sign * half_span, sign * half_span, 0, 0]
         ax.fill(wx, wy, color="#21262d", alpha=0.7, zorder=1)
