@@ -26,6 +26,12 @@ from engines.mass_balance_engine  import (
 from engines.sanity_engine        import full_sanity_check
 from engines import visualization_engine as viz
 
+def base_config(c: str) -> str:
+    """Strip tail type suffix for engine lookups."""
+    return (c.replace(" (H-tail)", "")
+             .replace(" (V-tail)", "")
+             .replace(" (Inverted V-tail)", ""))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,8 +83,15 @@ with st.sidebar:
 
     concept_name  = st.text_input("Concept name", value="Alpha-1")
     configuration = st.selectbox("Configuration", [
-        "Conventional Tractor", "Conventional Pusher",
-        "Twin-Boom Pusher", "Flying Wing", "Canard", "Tandem Wing"
+        "Conventional Tractor (H-tail)",
+        "Conventional Tractor (V-tail)",
+        "Conventional Pusher (H-tail)",
+        "Conventional Pusher (V-tail)",
+        "Twin-Boom Pusher (H-tail)",
+        "Twin-Boom Pusher (Inverted V-tail)",
+        "Flying Wing",
+        "Canard",
+        "Tandem Wing",
     ])
 
     st.divider()
@@ -193,7 +206,7 @@ with tab_mission:
     # Configuration recommendation
     st.divider()
     st.subheader("🏆 Recommended Configurations")
-    scores = score_configurations(mission, result["raw_pressures"])
+    scores = score_configurations(mission, result["raw_pressures"], configuration)
     st.session_state["config_scores"] = scores
     st.pyplot(viz.plot_config_scores(scores), use_container_width=True)
 
@@ -424,8 +437,12 @@ with tab_geom:
             st.subheader("Airfoil")
             airfoil_name = airfoil_selector()
 
-    elif configuration == "Twin-Boom Pusher":
-        st.info("🔧 Twin-Boom Pusher — motor at rear, twin booms carry tail surfaces.")
+    elif "Twin-Boom" in configuration:
+        is_vtail_tb = "V-tail" in configuration or "Inverted" in configuration
+        if is_vtail_tb:
+            st.info("🔧 Twin-Boom Pusher (Inverted V-tail) — butterfly/ruddervator surfaces angle inward from each boom tip toward centerline.")
+        else:
+            st.info("🔧 Twin-Boom Pusher — motor at rear, twin booms carry H-tail surfaces.")
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Wing")
@@ -439,16 +456,31 @@ with tab_geom:
             st.subheader("Booms & Tail")
             boom_length     = st.slider("Boom length (m)", 0.3, 1.5, 0.70, 0.01)
             fuselage_length = st.slider("Pod length (m)", 0.25, 1.2, 0.55, 0.01)
-            h_tail_area     = st.slider("H-tail area at boom tips (m2)", 0.005, 0.15, 0.035, 0.005)
-            v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.020, 0.002)
-            tail_arm        = boom_length * 0.85
+            if is_vtail_tb:
+                vtail_span_tb  = st.slider("V-tail span at tip (m)", 0.05, 0.30, 0.14, 0.01)
+                vtail_chord_tb = st.slider("V-tail chord (m)", 0.05, 0.20, 0.10, 0.01)
+                vtail_angle_tb = st.slider("V-tail angle (deg from horizontal)", 25.0, 60.0, 40.0, 1.0)
+                h_tail_area    = vtail_span_tb * vtail_chord_tb * math.cos(math.radians(vtail_angle_tb)) * 2
+                v_tail_area    = vtail_span_tb * vtail_chord_tb * math.sin(math.radians(vtail_angle_tb)) * 2
+                st.caption(f"Equiv H-tail: {h_tail_area:.4f} m²  |  V-tail: {v_tail_area:.4f} m²")
+                st.session_state["vtail_span_tb"]  = vtail_span_tb
+                st.session_state["vtail_chord_tb"] = vtail_chord_tb
+                st.session_state["vtail_angle_tb"] = vtail_angle_tb
+            else:
+                h_tail_area = st.slider("H-tail area at boom tips (m2)", 0.005, 0.15, 0.035, 0.005)
+                v_tail_area = st.slider("V-tail area (m2)", 0.003, 0.10, 0.020, 0.002)
+            tail_arm = boom_length * 0.85
             st.caption(f"Effective tail arm: {tail_arm:.2f} m")
             st.subheader("Airfoil")
             airfoil_name = airfoil_selector()
 
-    else:
-        # Conventional Tractor or Conventional Pusher
-        label = "Pusher" if "Pusher" in configuration else "Tractor"
+    elif "Twin-Boom" not in configuration and "Flying Wing" not in configuration          and "Canard" not in configuration and "Tandem" not in configuration:
+        # Conventional Tractor or Pusher (H-tail or V-tail)
+        is_vtail = "V-tail" in configuration
+        is_pusher = "Pusher" in configuration
+        if is_vtail:
+            st.info("V-tail combines horizontal and vertical control into two angled surfaces. "
+                    "Reduces drag but increases control complexity.")
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Wing")
@@ -462,8 +494,21 @@ with tab_geom:
             st.subheader("Tail & Fuselage")
             fuselage_length = st.slider("Fuselage length (m)", 0.30, 2.0, 0.80, 0.01)
             tail_arm        = st.slider("Tail arm (m)", 0.10, 1.5, 0.60, 0.01)
-            h_tail_area     = st.slider("H-tail area (m2)", 0.005, 0.20, 0.04, 0.005)
-            v_tail_area     = st.slider("V-tail area (m2)", 0.003, 0.10, 0.02, 0.002)
+            if is_vtail:
+                vtail_span  = st.slider("V-tail span (each surface, m)", 0.05, 0.40, 0.18, 0.01)
+                vtail_chord = st.slider("V-tail chord (m)", 0.05, 0.25, 0.12, 0.01)
+                vtail_dihedral = st.slider("V-tail dihedral angle (deg)", 25.0, 60.0, 40.0, 1.0)
+                # Equivalent areas for volume coefficient calculation
+                h_tail_area = vtail_span * vtail_chord * math.cos(math.radians(vtail_dihedral)) * 2
+                v_tail_area = vtail_span * vtail_chord * math.sin(math.radians(vtail_dihedral)) * 2
+                st.caption(f"Equiv H-tail area: {h_tail_area:.4f} m²  |  "
+                           f"Equiv V-tail area: {v_tail_area:.4f} m²")
+                st.session_state["vtail_span"]      = vtail_span
+                st.session_state["vtail_chord"]     = vtail_chord
+                st.session_state["vtail_dihedral"]  = vtail_dihedral
+            else:
+                h_tail_area = st.slider("H-tail area (m2)", 0.005, 0.20, 0.04, 0.005)
+                v_tail_area = st.slider("V-tail area (m2)", 0.003, 0.10, 0.02, 0.002)
             st.subheader("Airfoil")
             airfoil_name = airfoil_selector()
 
@@ -759,7 +804,7 @@ with tab_perf:
 
         perf = compute_performance(
             total_mass, gd_now, pd_now,
-            airfoil_now, configuration, extra_load, rho)
+            airfoil_now, base_config(configuration), extra_load, rho)
         st.session_state["perf"] = perf
 
         st.subheader("Key Performance Metrics")
@@ -817,7 +862,7 @@ with tab_warn:
         total_m= ss_get("total_mass_kg", 1.9)
 
         all_warnings = full_sanity_check(
-            configuration, mission, gd_now, pd_now, perf_now,
+            base_config(configuration), mission, gd_now, pd_now, perf_now,
             total_m, cg_x, cg_lo, cg_hi, pkg_s, pkg_i)
 
         if not all_warnings:
